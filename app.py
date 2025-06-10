@@ -26,10 +26,18 @@ class TechniqueResult:
     reasoning: str
 
 class RuleATTACKMapper:
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, model_name: str = "gemini-2.0-flash-exp"):
         """Initialize RAM with Gemini API"""
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-pro')
+        self.model_name = model_name
+        try:
+            self.model = genai.GenerativeModel(model_name)
+            # Test the model with a simple call
+            test_response = self.model.generate_content("Test")
+        except Exception as e:
+            st.warning(f"Model {model_name} not available, falling back to gemini-pro")
+            self.model = genai.GenerativeModel('gemini-pro')
+            self.model_name = 'gemini-pro'
         
     def extract_iocs(self, siem_rule: str) -> Dict[str, List[str]]:
         """Step 1: Extract IoCs from SIEM rule"""
@@ -46,7 +54,15 @@ class RuleATTACKMapper:
         """
         
         try:
-            response = self.model.generate_content(prompt)
+            # Configure generation parameters for better results
+            generation_config = {
+                "temperature": 0.1,  # Lower temperature for more consistent results
+                "top_p": 0.8,
+                "top_k": 40,
+                "max_output_tokens": 2048,
+            }
+            
+            response = self.model.generate_content(prompt, generation_config=generation_config)
             # Extract JSON from response
             json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
             if json_match:
@@ -78,12 +94,15 @@ class RuleATTACKMapper:
         """Step 2: Retrieve contextual information for IoCs"""
         context_info = {}
         
+        # Adjust delay based on model (newer models can handle faster requests)
+        delay = 0.3 if "2.0" in self.model_name else 0.5
+        
         for ioc_type, ioc_values in iocs_dict.items():
             for ioc_value in ioc_values[:3]:  # Limit to prevent too many API calls
                 search_query = f"cybersecurity {ioc_value} malware analysis threat"
                 context = self.search_web_context(search_query)
                 context_info[ioc_value] = context
-                time.sleep(0.5)  # Rate limiting
+                time.sleep(delay)  # Rate limiting
         
         return context_info
     
@@ -109,7 +128,14 @@ class RuleATTACKMapper:
         """
         
         try:
-            response = self.model.generate_content(prompt)
+            generation_config = {
+                "temperature": 0.2,
+                "top_p": 0.8,
+                "top_k": 40,
+                "max_output_tokens": 4096,
+            }
+            
+            response = self.model.generate_content(prompt, generation_config=generation_config)
             return response.text
         except Exception as e:
             st.error(f"Error in translation: {str(e)}")
@@ -154,7 +180,14 @@ class RuleATTACKMapper:
         """
         
         try:
-            response = self.model.generate_content(prompt)
+            generation_config = {
+                "temperature": 0.1,
+                "top_p": 0.9,
+                "top_k": 40,
+                "max_output_tokens": 3072,
+            }
+            
+            response = self.model.generate_content(prompt, generation_config=generation_config)
             # Extract JSON array from response
             json_match = re.search(r'\[.*\]', response.text, re.DOTALL)
             if json_match:
@@ -194,7 +227,14 @@ class RuleATTACKMapper:
             """
             
             try:
-                response = self.model.generate_content(prompt)
+                generation_config = {
+                    "temperature": 0.1,
+                    "top_p": 0.8,
+                    "top_k": 40,
+                    "max_output_tokens": 1024,
+                }
+                
+                response = self.model.generate_content(prompt, generation_config=generation_config)
                 
                 # Extract confidence score
                 confidence_match = re.search(r'CONFIDENCE:\s*([0-9.]+)', response.text)
@@ -303,6 +343,24 @@ def main():
         
         # Additional settings
         st.subheader("🎛️ Advanced Settings")
+        
+        # Model selection
+        model_options = {
+            "Gemini 2.0 Flash (Experimental)": "gemini-2.0-flash-exp",
+            "Gemini 2.0 Flash": "gemini-2.0-flash",
+            "Gemini 1.5 Flash": "gemini-1.5-flash",
+            "Gemini 1.5 Pro": "gemini-1.5-pro",
+            "Gemini Pro": "gemini-pro"
+        }
+        
+        selected_model_display = st.selectbox(
+            "🤖 Model Selection",
+            options=list(model_options.keys()),
+            index=0,  # Default to Gemini 2.0 Flash Experimental
+            help="Choose the Gemini model to use. Newer models are faster and more capable."
+        )
+        selected_model = model_options[selected_model_display]
+        
         confidence_threshold = st.slider(
             "Confidence Threshold",
             min_value=0.1,
@@ -328,7 +386,20 @@ def main():
         4. **Data Source ID** - Identify MITRE data sources
         5. **Technique Recommendation** - Find probable techniques
         6. **Relevance Extraction** - Filter most relevant matches
+        
+        **🤖 Model Comparison:**
+        - **Gemini 2.0 Flash**: Latest, fastest, most capable
+        - **Gemini 1.5 Pro**: Balanced performance and capability
+        - **Gemini Pro**: Stable, widely compatible
         """)
+        
+        # Model-specific tips
+        if "2.0" in selected_model:
+            st.success("🚀 **Gemini 2.0**: Faster processing & improved accuracy!")
+        elif "1.5" in selected_model:
+            st.info("⚡ **Gemini 1.5**: Good balance of speed and quality")
+        else:
+            st.warning("📝 **Gemini Pro**: Reliable but slower")
     
     # Main interface
     col1, col2 = st.columns([1, 1])
@@ -366,8 +437,11 @@ def main():
         st.header("📊 Analysis Results")
         
         if analyze_button and siem_rule.strip():
+            # Display model info
+            st.info(f"🤖 Using model: **{selected_model_display}** ({selected_model})")
+            
             # Initialize RAM
-            ram = RuleATTACKMapper(api_key)
+            ram = RuleATTACKMapper(api_key, selected_model)
             
             # Run analysis
             results = ram.map_rule_to_techniques(siem_rule, confidence_threshold)
