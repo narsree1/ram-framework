@@ -1,206 +1,283 @@
-# 🛡️ Rule-ATT&CK Mapper (RAM)
+# 🚀 Streamlit Cloud Deployment Guide for RAM
 
-An automated framework for mapping SIEM (Security Information and Event Management) rules to MITRE ATT&CK techniques using Large Language Models.
+This guide will walk you through deploying the Rule-ATT&CK Mapper (RAM) on Streamlit Cloud for **free**.
 
-Based on the research paper: [Rule-ATT&CK Mapper (RAM): Mapping SIEM Rules to TTPs Using LLMs](https://arxiv.org/html/2502.02337v1)
+## 📋 Prerequisites
 
-## 🚀 Live Demo
+- [ ] GitHub account
+- [ ] Google Gemini API key ([Get it here](https://aistudio.google.com/app/apikey))
+- [ ] Basic knowledge of GitHub
 
-**[Try RAM Live on Streamlit Cloud →](https://your-app-name.streamlit.app)**
+## 🛠️ Step-by-Step Deployment
 
-## 📋 Features
-
-- **🚀 Gemini 2.0 Flash Support**: Latest Google AI model with 3x faster processing
-- **Multi-step Analysis Pipeline**: 6-stage process for comprehensive rule analysis
-- **IoC Extraction**: Automatically extracts indicators of compromise from rules
-- **Contextual Enhancement**: Retrieves additional context using web search
-- **Natural Language Translation**: Converts technical rules to readable descriptions
-- **MITRE ATT&CK Mapping**: Maps rules to relevant attack techniques
-- **Confidence Scoring**: Provides reasoning and confidence for each mapping
-- **Multiple SIEM Support**: Works with Splunk, Elasticsearch, KQL, and more
-- **Multiple Model Options**: Choose from Gemini 2.0 Flash, 1.5 Pro, or Gemini Pro
-
-## 🛠️ Local Installation
-
-### Prerequisites
-
-- Python 3.8 or higher
-- Google Gemini API key (free from [Google AI Studio](https://aistudio.google.com/app/apikey))
-
-### Setup
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/ram-framework.git
-   cd ram-framework
-   ```
-
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Run the application**
-   ```bash
-   streamlit run app.py
-   ```
-
-4. **Open your browser** to `http://localhost:8501`
-
-## ☁️ Deploy on Streamlit Cloud (Free)
-
-### Step 1: Prepare Your GitHub Repository
-
-1. **Create a new GitHub repository**
-2. **Upload these files to your repo:**
-   - `app.py` (main application)
-   - `requirements.txt` (dependencies)
-   - `README.md` (this file)
-
-### Step 2: Deploy on Streamlit Cloud
-
-1. **Go to [share.streamlit.io](https://share.streamlit.io)**
-2. **Sign in with GitHub**
-3. **Click "New app"**
-4. **Fill in the details:**
-   - Repository: `yourusername/ram-framework`
-   - Branch: `main`
-   - Main file path: `app.py`
-5. **Click "Deploy"**
-
-### Step 3: Configure API Key
-
-1. **In Streamlit Cloud, go to your app settings**
-2. **Add secrets:**
-   ```toml
-   # .streamlit/secrets.toml (optional - for pre-configured API key)
-   GEMINI_API_KEY = "your_api_key_here"
-   ```
-
-## 🔑 Getting Your Gemini API Key
+### Step 1: Get Your Gemini API Key
 
 1. **Visit [Google AI Studio](https://aistudio.google.com/app/apikey)**
-2. **Sign in with your Google account**
+2. **Sign in** with your Google account
 3. **Click "Create API key"**
-4. **Copy your API key**
-5. **Enter it in the RAM application sidebar**
+4. **Copy and save** your API key securely
+   ```
+   Example: AIzaSyC...your_api_key_here...XYZ
+   ```
 
-## 📊 How It Works
+### Step 2: Create GitHub Repository
 
-### The 6-Step RAM Pipeline
+1. **Go to [GitHub.com](https://github.com)** and sign in
+2. **Click "New repository"** (green button)
+3. **Repository settings:**
+   - Repository name: `ram-framework` (or your preferred name)
+   - Description: `Rule-ATT&CK Mapper - SIEM to MITRE ATT&CK mapping`
+   - Visibility: `Public` (required for free Streamlit Cloud)
+   - Initialize: ✅ Add a README file
+4. **Click "Create repository"**
 
-1. **IoC Extraction** 🔍
-   - Extracts indicators like process names, file paths, IP addresses
-   - Uses zero-shot prompting with Gemini
+### Step 3: Upload Files to GitHub
 
-2. **Contextual Information Retrieval** 🌐
-   - Searches for additional context about extracted IoCs
-   - Uses web search APIs for enhanced understanding
+You need to upload these files to your repository:
 
-3. **Natural Language Translation** 📝
-   - Converts structured SIEM rules to readable descriptions
-   - Combines syntactic and semantic information
-
-4. **Data Source Identification** 📋
-   - Identifies relevant MITRE ATT&CK data sources
-   - Maps to framework components
-
-5. **Probable Technique Recommendation** 🎯
-   - Generates list of probable MITRE ATT&CK techniques
-   - Uses LLM knowledge of the framework
-
-6. **Relevant Technique Extraction** ✅
-   - Filters and scores techniques by relevance
-   - Provides reasoning and confidence scores
-
-## 💡 Example SIEM Rules
-
-### Splunk - Suspicious PowerShell
-```spl
-index=main sourcetype="WinEventLog:Security" EventCode=4688 
-| search process_name="*powershell.exe*" command_line="*-EncodedCommand*" 
-| stats count by host, user, process_name, command_line
+#### Required Files Structure:
+```
+ram-framework/
+├── app.py                    # Main application
+├── requirements.txt          # Dependencies
+├── README.md                 # Documentation
+└── .streamlit/
+    ├── config.toml           # Streamlit configuration
+    └── secrets.toml          # Secrets template (optional)
 ```
 
-### Elasticsearch - Network Connections
-```json
-GET /logs/_search {
-  "query": {
-    "bool": {
-      "must": [
-        {"term": {"event_type": "network"}},
-        {"range": {"destination_port": {"gte": 4444, "lte": 4445}}}
-      ]
-    }
-  }
-}
+#### Upload Methods:
+
+**Option A: GitHub Web Interface (Easier)**
+1. **Click "uploading an existing file"** in your repo
+2. **Drag and drop** or **choose files**:
+   - Upload `app.py`
+   - Upload `requirements.txt`
+   - Upload `README.md`
+3. **Create `.streamlit` folder:**
+   - Click "Create new file"
+   - Type `.streamlit/config.toml`
+   - Paste the config content
+4. **Commit changes**
+
+**Option B: Git Commands (Advanced)**
+```bash
+git clone https://github.com/yourusername/ram-framework.git
+cd ram-framework
+# Copy your files here
+git add .
+git commit -m "Initial RAM deployment"
+git push origin main
 ```
 
-## 📈 Performance
+### Step 4: Deploy on Streamlit Cloud
 
-**With Gemini 2.0 Flash:**
-- **Average Recall**: ~0.80+ (improved from 0.75)
-- **Average Precision**: ~0.55+ (improved from 0.52)  
-- **Processing Time**: 15-30 seconds per rule (3x faster)
-- **Technique Coverage**: 670+ MITRE ATT&CK techniques
-- **Model Options**: 2.0 Flash, 1.5 Pro, 1.5 Flash, Gemini Pro
+1. **Visit [share.streamlit.io](https://share.streamlit.io)**
+2. **Sign in with GitHub**
+3. **Click "New app"**
+4. **Fill deployment form:**
+   ```
+   Repository: yourusername/ram-framework
+   Branch: main
+   Main file path: app.py
+   App URL: ram-framework (or custom name)
+   ```
+5. **Click "Deploy!"**
 
-**Original Research Baseline:**
-- Average Recall: 0.75, Average Precision: 0.52
-- Processing Time: 30-60 seconds per rule
+### Step 5: Configure Secrets (Recommended)
 
-## 🔧 Customization
+**Option A: Using Streamlit Cloud Secrets (Recommended)**
+1. **Go to your app dashboard** on Streamlit Cloud
+2. **Click the gear icon** ⚙️ (Settings)
+3. **Go to "Secrets" tab**
+4. **Add your secrets:**
+   ```toml
+   CLAUDE_API_KEY = "your_actual_api_key_here"
+   
+   [settings]
+   default_confidence_threshold = 0.7
+   max_techniques_display = 5
+   ```
+5. **Click "Save"**
+6. **App will restart automatically**
 
-### Modify Confidence Threshold
+**Option B: Manual Entry (Alternative)**
+- Users can enter API key directly in the app sidebar
+- Less secure but works for testing
+
+### Step 6: Test Your Deployment
+
+1. **Wait for deployment** (usually 2-5 minutes)
+2. **Click "View app"** or visit your app URL
+3. **Test with example SIEM rule:**
+   ```spl
+   index=main sourcetype="WinEventLog:Security" EventCode=4688 
+   | search process_name="*powershell.exe*" command_line="*-EncodedCommand*" 
+   | stats count by host, user, process_name, command_line
+   ```
+4. **Verify all steps work correctly**
+
+## 🔧 Troubleshooting
+
+### Common Issues and Solutions
+
+#### ❌ "ModuleNotFoundError"
+**Problem**: Missing dependencies
+**Solution**: Check `requirements.txt` has all required packages
+```txt
+streamlit>=1.28.0
+anthropic>=0.34.0
+requests>=2.31.0
+pandas>=2.0.0
+typing-extensions>=4.5.0
+```
+
+#### ❌ "API Key Invalid"
+**Problem**: Incorrect or expired API key
+**Solution**: 
+1. Verify API key in Anthropic Console
+2. Check secrets configuration
+3. Ensure key starts with "sk-ant-api03-"
+4. Ensure no extra spaces in key
+
+#### ❌ "App Won't Start"
+**Problem**: Code errors
+**Solution**: 
+1. Check logs in Streamlit Cloud dashboard
+2. Verify all files uploaded correctly
+3. Test locally first: `streamlit run app.py`
+
+#### ❌ "Rate Limiting"
+**Problem**: Too many API calls
+**Solution**: 
+1. Increase delays in `retrieve_contextual_info()`
+2. Reduce number of IoCs processed
+3. Wait and retry
+
+### Performance Optimization
+
+#### Speed up Analysis:
 ```python
-# In app.py, adjust the confidence threshold
-confidence_threshold = 0.7  # Default: 0.7 (70%)
+# In app.py, modify these settings:
+for ioc_value in ioc_values[:2]:  # Reduce from 3 to 2
+    # ...
+    time.sleep(1.0)  # Increase delay to avoid rate limits
 ```
 
-### Add New SIEM Formats
-The framework is designed to work with any SIEM rule format. Simply paste your rule and the LLM will interpret it.
-
-### Extend Context Sources
+#### Reduce API Costs:
 ```python
-# Add more context sources in retrieve_contextual_info()
-def search_additional_sources(self, query):
-    # Add your custom threat intelligence sources
-    pass
+# Use fewer probable techniques
+probable_techniques = self.recommend_probable_techniques(rule_description, k=7)  # Reduce from 11
 ```
 
-## 🤝 Contributing
+## 📊 Monitoring Your App
 
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature-name`
-3. **Make your changes**
-4. **Submit a pull request**
+### Streamlit Cloud Dashboard Features:
+- **Logs**: View real-time application logs
+- **Metrics**: Monitor app usage and performance
+- **Secrets**: Manage API keys securely
+- **Settings**: Configure deployment options
+- **Share**: Get shareable link
 
-## 📄 License
+### Usage Analytics:
+- View visitor count
+- Monitor API usage
+- Track performance metrics
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## 🔄 Updating Your App
 
-## 🙏 Acknowledgments
+### Method 1: GitHub Web Interface
+1. **Go to your GitHub repository**
+2. **Click on file to edit** (e.g., `app.py`)
+3. **Click pencil icon** ✏️ to edit
+4. **Make changes**
+5. **Commit changes**
+6. **App updates automatically** in ~2 minutes
 
-- Original research paper authors
-- Google for providing the Gemini API
-- Streamlit for the amazing framework
-- MITRE for the ATT&CK framework
+### Method 2: Git Commands
+```bash
+git pull origin main
+# Make your changes
+git add .
+git commit -m "Update: description of changes"
+git push origin main
+```
 
-## 📞 Support
+## 🎯 Best Practices
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/ram-framework/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/ram-framework/discussions)
-- **Email**: your.email@example.com
+### Security:
+- ✅ **Always use Secrets** for API keys
+- ✅ **Never commit API keys** to GitHub
+- ✅ **Use environment variables** for configuration
+- ✅ **Keep repository public** (required for free tier)
 
-## 🔮 Roadmap
+### Performance:
+- ✅ **Add caching** with `@st.cache_data`
+- ✅ **Optimize API calls** with delays
+- ✅ **Handle errors gracefully**
+- ✅ **Provide user feedback** with progress bars
 
-- [ ] Support for more LLM providers (OpenAI, Anthropic, etc.)
-- [ ] Batch processing for multiple rules
-- [ ] Export results to various formats (JSON, CSV, PDF)
-- [ ] Integration with SIEM platforms
-- [ ] Custom technique databases
-- [ ] Advanced visualization of mappings
+### User Experience:
+- ✅ **Include example SIEM rules**
+- ✅ **Provide clear instructions**
+- ✅ **Show progress indicators**
+- ✅ **Handle edge cases**
+
+## 📈 Scaling Your App
+
+### Free Tier Limits:
+- **1 app per account**
+- **Public repositories only**
+- **Community support only**
+- **Shared resources**
+
+### Upgrade Options:
+- **Streamlit for Teams**: Multiple private apps
+- **Streamlit for Enterprise**: Advanced features
+- **Self-hosting**: Full control
+
+## 🎉 Going Live
+
+### Share Your App:
+1. **Get your app URL**: `https://your-app-name.streamlit.app`
+2. **Share on social media**
+3. **Add to your GitHub README**
+4. **Submit to Streamlit Gallery**
+
+### Example Share Links:
+```markdown
+🛡️ **Try RAM Live**: [ram-framework.streamlit.app](https://ram-framework.streamlit.app)
+
+📚 **Source Code**: [github.com/yourusername/ram-framework](https://github.com/yourusername/ram-framework)
+```
+
+## 🆘 Getting Help
+
+### Resources:
+- **Streamlit Docs**: [docs.streamlit.io](https://docs.streamlit.io)
+- **Streamlit Community**: [discuss.streamlit.io](https://discuss.streamlit.io)
+- **GitHub Issues**: Create issues in your repository
+- **Google AI Docs**: [ai.google.dev](https://ai.google.dev)
+
+### Support Channels:
+- **Streamlit Community Forum**
+- **GitHub Discussions**
+- **Stack Overflow** (tag: streamlit)
+- **Discord/Slack Communities**
 
 ---
 
-**⭐ Star this repository if you find it useful!**
+## ✅ Deployment Checklist
+
+Before going live, ensure:
+
+- [ ] All files uploaded to GitHub
+- [ ] API key configured in secrets
+- [ ] App deploys without errors
+- [ ] Test with sample SIEM rules
+- [ ] Error handling works
+- [ ] Performance is acceptable
+- [ ] Documentation is complete
+- [ ] Share links are ready
+
+**🎊 Congratulations! Your RAM application is now live on Streamlit Cloud!**
