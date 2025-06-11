@@ -1,5 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
+import anthropic
 import json
 import requests
 from typing import Dict, List, Any
@@ -26,45 +26,55 @@ class TechniqueResult:
     reasoning: str
 
 class RuleATTACKMapper:
-    def __init__(self, api_key: str, model_name: str = "gemini-2.0-flash-exp"):
-        """Initialize RAM with Gemini API"""
-        genai.configure(api_key=api_key)
+    def __init__(self, api_key: str, model_name: str = "claude-3-5-haiku-20241022"):
+        """Initialize RAM with Claude API"""
+        self.client = anthropic.Anthropic(api_key=api_key)
         self.model_name = model_name
+        
+        # Test the API connection
         try:
-            self.model = genai.GenerativeModel(model_name)
-            # Test the model with a simple call
-            test_response = self.model.generate_content("Test")
+            test_response = self.client.messages.create(
+                model=model_name,
+                max_tokens=10,
+                messages=[{"role": "user", "content": "Test"}]
+            )
         except Exception as e:
-            st.warning(f"Model {model_name} not available, falling back to gemini-pro")
-            self.model = genai.GenerativeModel('gemini-pro')
-            self.model_name = 'gemini-pro'
+            st.error(f"Failed to connect to Claude API: {str(e)}")
+            st.stop()
+    
+    def _call_claude(self, prompt: str, max_tokens: int = 2048, temperature: float = 0.1) -> str:
+        """Helper method to call Claude API with consistent parameters"""
+        try:
+            response = self.client.messages.create(
+                model=self.model_name,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response.content[0].text
+        except Exception as e:
+            st.error(f"Error calling Claude API: {str(e)}")
+            return ""
         
     def extract_iocs(self, siem_rule: str) -> Dict[str, List[str]]:
         """Step 1: Extract IoCs from SIEM rule"""
-        prompt = f"""
-        Context: You are a cybersecurity specialist analyzing SIEM rules.
-        
-        Instruction: Identify and extract all Indicators of Compromise (IoCs) from the provided SIEM rule. 
-        Extract types like processes, files, IP addresses, registry keys, log sources, event codes, network ports, domains.
-        
-        Guidelines: Return results ONLY as a valid JSON dictionary where keys are IoC types and values are lists of specific IoC details.
-        Example format: {{"processes": ["process1.exe"], "files": ["file1.txt"], "registry_keys": ["HKEY_LOCAL_MACHINE\\Software\\..."]}}
-        
-        Input: {siem_rule}
-        """
+        prompt = f"""You are a cybersecurity specialist analyzing SIEM rules.
+
+Your task is to identify and extract all Indicators of Compromise (IoCs) from the provided SIEM rule. Extract types like processes, files, IP addresses, registry keys, log sources, event codes, network ports, domains.
+
+Return results ONLY as a valid JSON dictionary where keys are IoC types and values are lists of specific IoC details.
+
+Example format: {{"processes": ["process1.exe"], "files": ["file1.txt"], "registry_keys": ["HKEY_LOCAL_MACHINE\\Software\\..."]}}
+
+SIEM Rule to analyze:
+{siem_rule}
+
+Return only the JSON dictionary, no other text."""
         
         try:
-            # Configure generation parameters for better results
-            generation_config = {
-                "temperature": 0.1,  # Lower temperature for more consistent results
-                "top_p": 0.8,
-                "top_k": 40,
-                "max_output_tokens": 2048,
-            }
-            
-            response = self.model.generate_content(prompt, generation_config=generation_config)
+            response_text = self._call_claude(prompt, max_tokens=1024, temperature=0.1)
             # Extract JSON from response
-            json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
             if json_match:
                 return json.loads(json_match.group())
             return {}
@@ -94,8 +104,8 @@ class RuleATTACKMapper:
         """Step 2: Retrieve contextual information for IoCs"""
         context_info = {}
         
-        # Adjust delay based on model (newer models can handle faster requests)
-        delay = 0.3 if "2.0" in self.model_name else 0.5
+        # Claude Haiku is fast, so we can use shorter delays
+        delay = 0.2 if "haiku" in self.model_name.lower() else 0.3
         
         for ioc_type, ioc_values in iocs_dict.items():
             for ioc_value in ioc_values[:3]:  # Limit to prevent too many API calls
@@ -108,35 +118,30 @@ class RuleATTACKMapper:
     
     def translate_to_natural_language(self, siem_rule: str, iocs_dict: Dict, context_info: Dict) -> str:
         """Step 3: Translate SIEM rule to natural language"""
-        prompt = f"""
-        Context: You are translating a SIEM detection rule into natural language.
-        
-        Instruction: Convert the provided SIEM rule into a comprehensive natural language description 
-        that explains what the rule detects and why it's important for cybersecurity.
-        
-        Guidelines: 
-        - Include both syntactical information from the rule and semantic insights from contextual information
-        - Make it understandable for security analysts
-        - Focus on the attack behavior being detected
-        
-        Input: 
-        Rule: {siem_rule}
-        
-        Extracted IoCs: {json.dumps(iocs_dict, indent=2)}
-        
-        Contextual Information: {json.dumps(context_info, indent=2)}
-        """
+        prompt = f"""You are translating a SIEM detection rule into natural language.
+
+Your task is to convert the provided SIEM rule into a comprehensive natural language description that explains what the rule detects and why it's important for cybersecurity.
+
+Guidelines: 
+- Include both syntactical information from the rule and semantic insights from contextual information
+- Make it understandable for security analysts
+- Focus on the attack behavior being detected
+- Be concise but comprehensive
+
+SIEM Rule:
+{siem_rule}
+
+Extracted IoCs:
+{json.dumps(iocs_dict, indent=2)}
+
+Contextual Information:
+{json.dumps(context_info, indent=2)}
+
+Provide a clear, natural language explanation of what this rule detects:"""
         
         try:
-            generation_config = {
-                "temperature": 0.2,
-                "top_p": 0.8,
-                "top_k": 40,
-                "max_output_tokens": 4096,
-            }
-            
-            response = self.model.generate_content(prompt, generation_config=generation_config)
-            return response.text
+            response_text = self._call_claude(prompt, max_tokens=1024, temperature=0.2)
+            return response_text
         except Exception as e:
             st.error(f"Error in translation: {str(e)}")
             return f"Detection rule for monitoring: {str(iocs_dict)}"
@@ -163,33 +168,25 @@ class RuleATTACKMapper:
     
     def recommend_probable_techniques(self, rule_description: str, k: int = 11) -> List[Dict]:
         """Step 5: Recommend probable MITRE ATT&CK techniques"""
-        prompt = f"""
-        Context: You are a cybersecurity expert mapping SIEM rules to MITRE ATT&CK techniques.
-        
-        Instruction: Based on the rule description, recommend the top {k} most probable MITRE ATT&CK 
-        techniques or sub-techniques that match this detection rule. Focus on what attack behaviors 
-        this rule would detect.
-        
-        Guidelines: 
-        - Return results as a JSON array of objects
-        - Each object should have: "id", "name", "description"
-        - Use real MITRE ATT&CK technique IDs (like T1055, T1003.001, etc.)
-        - Prioritize techniques that match the specific behaviors described
-        
-        Rule Description: {rule_description}
-        """
+        prompt = f"""You are a cybersecurity expert mapping SIEM rules to MITRE ATT&CK techniques.
+
+Your task is to recommend the top {k} most probable MITRE ATT&CK techniques or sub-techniques that match this detection rule. Focus on what attack behaviors this rule would detect.
+
+Guidelines: 
+- Return results as a JSON array of objects
+- Each object should have: "id", "name", "description"
+- Use real MITRE ATT&CK technique IDs (like T1055, T1003.001, etc.)
+- Prioritize techniques that match the specific behaviors described
+
+Rule Description:
+{rule_description}
+
+Return only the JSON array, no other text:"""
         
         try:
-            generation_config = {
-                "temperature": 0.1,
-                "top_p": 0.9,
-                "top_k": 40,
-                "max_output_tokens": 3072,
-            }
-            
-            response = self.model.generate_content(prompt, generation_config=generation_config)
+            response_text = self._call_claude(prompt, max_tokens=2048, temperature=0.1)
             # Extract JSON array from response
-            json_match = re.search(r'\[.*\]', response.text, re.DOTALL)
+            json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
             if json_match:
                 return json.loads(json_match.group())
             return []
@@ -203,45 +200,37 @@ class RuleATTACKMapper:
         relevant_techniques = []
         
         for technique in probable_techniques:
-            prompt = f"""
-            Context: Compare a SIEM rule description with a MITRE ATT&CK technique for relevance.
-            
-            Instruction: Analyze how well the SIEM rule matches the attack technique. 
-            Provide a confidence score (0.0 to 1.0) and reasoning.
-            
-            Guidelines: 
-            - Score 0.9-1.0: Perfect match
-            - Score 0.7-0.9: Good match
-            - Score 0.5-0.7: Moderate match
-            - Score 0.0-0.5: Poor match
-            - Provide clear reasoning
-            
-            Rule Description: {rule_description}
-            
-            Technique: {technique.get('id', 'Unknown')} - {technique.get('name', 'Unknown')}
-            Description: {technique.get('description', 'No description')}
-            
-            Respond in format:
-            CONFIDENCE: [score]
-            REASONING: [your reasoning]
-            """
+            prompt = f"""You are comparing a SIEM rule description with a MITRE ATT&CK technique for relevance.
+
+Your task is to analyze how well the SIEM rule matches the attack technique. Provide a confidence score (0.0 to 1.0) and reasoning.
+
+Scoring Guidelines: 
+- Score 0.9-1.0: Perfect match
+- Score 0.7-0.9: Good match
+- Score 0.5-0.7: Moderate match
+- Score 0.0-0.5: Poor match
+
+Rule Description:
+{rule_description}
+
+MITRE ATT&CK Technique:
+- ID: {technique.get('id', 'Unknown')}
+- Name: {technique.get('name', 'Unknown')}
+- Description: {technique.get('description', 'No description')}
+
+Respond in this exact format:
+CONFIDENCE: [score between 0.0 and 1.0]
+REASONING: [your detailed reasoning for the score]"""
             
             try:
-                generation_config = {
-                    "temperature": 0.1,
-                    "top_p": 0.8,
-                    "top_k": 40,
-                    "max_output_tokens": 1024,
-                }
-                
-                response = self.model.generate_content(prompt, generation_config=generation_config)
+                response_text = self._call_claude(prompt, max_tokens=512, temperature=0.1)
                 
                 # Extract confidence score
-                confidence_match = re.search(r'CONFIDENCE:\s*([0-9.]+)', response.text)
+                confidence_match = re.search(r'CONFIDENCE:\s*([0-9.]+)', response_text)
                 confidence = float(confidence_match.group(1)) if confidence_match else 0.5
                 
                 # Extract reasoning
-                reasoning_match = re.search(r'REASONING:\s*(.*)', response.text, re.DOTALL)
+                reasoning_match = re.search(r'REASONING:\s*(.*)', response_text, re.DOTALL)
                 reasoning = reasoning_match.group(1).strip() if reasoning_match else "No reasoning provided"
                 
                 if confidence >= confidence_threshold:
@@ -322,7 +311,7 @@ def main():
         st.header("⚙️ Configuration")
         
         # Try to get API key from secrets first, then from user input
-        default_api_key = st.secrets.get("GEMINI_API_KEY", "")
+        default_api_key = st.secrets.get("CLAUDE_API_KEY", "")
         
         if default_api_key:
             api_key = default_api_key
@@ -330,14 +319,14 @@ def main():
         else:
             # API Key input
             api_key = st.text_input(
-                "Gemini API Key", 
+                "Claude API Key", 
                 type="password",
-                placeholder="Enter your Gemini API key...",
-                help="Get your free API key from https://aistudio.google.com/app/apikey"
+                placeholder="Enter your Claude API key...",
+                help="Get your API key from https://console.anthropic.com/"
             )
             
             if not api_key:
-                st.warning("Please enter your Gemini API key to continue")
+                st.warning("Please enter your Claude API key to continue")
                 st.info("💡 **Tip**: You can also configure the API key in Streamlit Cloud secrets for automatic loading")
                 st.stop()
         
@@ -346,18 +335,17 @@ def main():
         
         # Model selection
         model_options = {
-            "Gemini 2.0 Flash (Experimental)": "gemini-2.0-flash-exp",
-            "Gemini 2.0 Flash": "gemini-2.0-flash",
-            "Gemini 1.5 Flash": "gemini-1.5-flash",
-            "Gemini 1.5 Pro": "gemini-1.5-pro",
-            "Gemini Pro": "gemini-pro"
+            "Claude 3.5 Haiku": "claude-3-5-haiku-20241022",
+            "Claude 3.5 Sonnet": "claude-3-5-sonnet-20241022", 
+            "Claude 3 Haiku": "claude-3-haiku-20240307",
+            "Claude 3 Sonnet": "claude-3-sonnet-20240229"
         }
         
         selected_model_display = st.selectbox(
             "🤖 Model Selection",
             options=list(model_options.keys()),
-            index=0,  # Default to Gemini 2.0 Flash Experimental
-            help="Choose the Gemini model to use. Newer models are faster and more capable."
+            index=0,  # Default to Claude 3.5 Haiku
+            help="Choose the Claude model to use. Haiku is fastest and most cost-effective."
         )
         selected_model = model_options[selected_model_display]
         
@@ -387,19 +375,19 @@ def main():
         5. **Technique Recommendation** - Find probable techniques
         6. **Relevance Extraction** - Filter most relevant matches
         
-        **🤖 Model Comparison:**
-        - **Gemini 2.0 Flash**: Latest, fastest, most capable
-        - **Gemini 1.5 Pro**: Balanced performance and capability
-        - **Gemini Pro**: Stable, widely compatible
+        **🤖 Claude Model Comparison:**
+        - **Claude 3.5 Haiku**: Fastest, most cost-effective, excellent for structured tasks
+        - **Claude 3.5 Sonnet**: Balanced performance and capability
+        - **Claude 3 Models**: Proven reliability
         """)
         
         # Model-specific tips
-        if "2.0" in selected_model:
-            st.success("🚀 **Gemini 2.0**: Faster processing & improved accuracy!")
-        elif "1.5" in selected_model:
-            st.info("⚡ **Gemini 1.5**: Good balance of speed and quality")
+        if "haiku" in selected_model.lower():
+            st.success("🚀 **Claude Haiku**: Lightning fast & cost-effective!")
+        elif "sonnet" in selected_model.lower() and "3.5" in selected_model:
+            st.info("⚡ **Claude 3.5 Sonnet**: Premium performance")
         else:
-            st.warning("📝 **Gemini Pro**: Reliable but slower")
+            st.warning("📝 **Claude 3**: Reliable baseline models")
     
     # Main interface
     col1, col2 = st.columns([1, 1])
@@ -505,7 +493,7 @@ def main():
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center'>
-        <p>Built with ❤️ using Streamlit and Google Gemini API</p>
+        <p>Built with ❤️ using Streamlit and Claude API</p>
         <p><a href='https://github.com/your-username/ram-framework'>📚 View on GitHub</a> | 
         <a href='https://arxiv.org/html/2502.02337v1'>📄 Original Paper</a></p>
     </div>
